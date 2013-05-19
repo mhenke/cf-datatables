@@ -399,7 +399,6 @@
 	        <arg path="lib-cloudy/js.jar"/>
 	        <arg path="lib-cloudy/csslint-rhino.js" />      
 
-	        <!-- your customized arguments go here -->
 	        <arg line="--format=lint-xml --warnings=box-model,floats --errors=ids,important"/>
 
 	        <srcfile/>
