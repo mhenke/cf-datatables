@@ -404,8 +404,16 @@
 	        <arg line="-jar"/>
 	        <arg path="lib-cloudy/js.jar"/>
 	        <arg path="lib-cloudy/csslint-rhino.js" />      
-	        <!-- format=checkstyle-xml -->
 	        <arg line="--format=lint-xml --warnings=box-model,floats --errors=ids,important"/>
+	        <srcfile/>
+	    </apply>
+	    <echo>Starting csslint for checkstyle...</echo>
+	    <apply executable="java" failonerror="false" parallel="true" output="csslint-checkstyle.xml">
+	        <fileset dir="${filePathToBuildFolder}" includes="**/*.css" />
+	        <arg line="-jar"/>
+	        <arg path="lib-cloudy/js.jar"/>
+	        <arg path="lib-cloudy/csslint-rhino.js" />      
+	        <arg line="--format=checkstyle --warnings=box-model,floats --errors=ids,important"/>
 	        <srcfile/>
 	    </apply>
 	</target>
