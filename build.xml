@@ -1,0 +1,535 @@
+<?xml version="1.0"?>
+<project name="CloudyBuild" default="all" basedir=".">
+	<description>
+		Build file for compile and other easy to implement coldfusion checks
+	</description>
+
+	<!--
+		=================================
+			Target: init
+			Initializes the general settings and properties used in the build
+		=================================
+	-->
+	<target name="init">
+		<tstamp />
+
+		<!--specific build location variables-->
+		
+		<!-- let's load up a user's build file first, so they don't have to check in their 
+			 own properties into version control
+			 It will look for something like /Users/username/<ant.projectname>.properties, for example:
+			 	/Users/markdrew/CloudyBuild.properties 
+		--> 
+		<property file="${user.home}/${ant.project.name}.properties"/>
+		<property file="build.properties" />
+		
+		<!-- some additional mxunit test properties -->
+		<!-- where do your tests live, relative to this build file? test.dir.location will be a full path to a directory -->
+		<property name="mxunit.dir.location" location="${mxunit.dir.name}" />
+
+		<!-- what is the cfc dot-notation path to that directory, as ColdFusion sees it? -->
+		<property name="mxunit.cfcpath" value="${mxunit.dir.name}" />
+		
+		<!-- this is where the xml and html will live for the report generator and Jenkins -->
+		<property name="mxunit.output" location="${mxunit.dir.name}/testresults" />
+		<property name="mxunit.output.xml" location="${mxunit.output}/xml" />
+		
+		<!-- 
+			make sure all the settings are defined *SOMEWHERE*, since comments and documentation are never read
+			 If you add a new variable that has to be set, add it in the lines below
+			 Read more about it here: http://www.javaranch.com/build_properties.jsp
+		 -->
+		<property name="prop.message" value="must be defined, preferably in build.properties or  ${user.home}/${ant.project.name}.properties (details at http://javaranch.com/props)"/>
+		<fail message="cfmlengine.railo ${prop.message}" unless="cfmlengine.railo"/>                                   
+		<fail message="cfmlengine.openbd ${prop.message}" unless="cfmlengine.openbd"/>
+		<fail message="cfmlengine.acf ${prop.message}" unless="cfmlengine.acf"/>
+		<fail message="directoryName ${prop.message}" unless="directoryName"/>
+		<fail message="isolateInspection ${prop.message}" unless="isolateInspection"/>
+		<fail message="webapp.server ${prop.message}" unless="webapp.server"/>
+		
+		<fail message="db.driver ${prop.message}" unless="db.driver"/>
+		<fail message="db.classpath ${prop.message}" unless="db.classpath"/>
+		<fail message="db.host ${prop.message}" unless="db.host"/>
+		<fail message="db.port ${prop.message}" unless="db.port"/>
+		<fail message="db.name ${prop.message}" unless="db.name"/>
+		<fail message="db.user ${prop.message}" unless="db.user"/>
+		<fail message="db.password ${prop.message}" unless="db.password"/>
+		<fail message="db.url ${prop.message}" unless="db.url"/>
+		
+		<fail message="mxunit.server ${prop.message}" unless="mxunit.server"/>
+		<fail message="mxunit.output.dir ${prop.message}" unless="mxunit.output.dir"/>
+		<fail message="mxunit.haltonfailure ${prop.message}" unless="mxunit.haltonfailure"/>
+		<fail message="mxunit.haltonerror ${prop.message}" unless="mxunit.haltonerror"/>
+		
+		
+		<!-- mxunit default properties -->
+		<property name="testing.unit.haltonfailure" value="false" />
+		<property name="testing.unit.haltonerror" value="false" />
+		
+		<property name="filePathToBuildFolder" value="${compilePathJars}/${isolateInspection}" />
+
+		<path id="project.classpath">
+			<fileset dir="lib-cloudy">
+				<include name="**/*.jar" />
+			</fileset>
+		</path>
+		
+		<taskdef resource="net/sf/antcontrib/antcontrib.properties" classpathref="project.classpath" />
+		<taskdef name="mxunittask" classname="org.mxunit.ant.MXUnitAntTask" classpathref="project.classpath" />
+		<taskdef name="jslint" classname="com.googlecode.jslint4java.ant.JSLintTask" classpathref="project.classpath" />
+		
+	</target>
+
+	<!--
+		=================================
+			Target: all
+		=================================
+	-->
+	<target name="all" depends="init,compile.check,inspection.qpscanner,inspection.varscoper,inspection.csslint,inspection.jslint,inspection.cpd,package,deploy" description="--> currently runs compile.check, package, and deploy targets" />
+
+	<!--
+		=================================
+			Target: package
+		=================================
+	-->
+	<target name="package" description="--> packages the appropriate files into the deployment-ready zip file. use this for testing; otherwise, use publish">
+		<echo>packaging</echo>
+	</target>
+
+	<!--
+		=================================
+			Target: clean
+			Cleans up un-needed files in build folder
+		=================================
+	-->
+	<target name="clean">
+		<echo>Cleaning started...</echo>
+		<delete dir="${filePathToBuildFolder}" />
+		<echo>clean-up done</echo>
+	</target>
+
+	<!--
+		=================================
+			Target: copy
+			Copying files for compile test
+		=================================
+	-->
+	<target name="copy" depends="init,clean" unless="jenkins_workspace">
+		<echo>Copying from ${webroot}/${directoryName}</echo>
+		<copy todir="${filePathToBuildFolder}">
+			<fileset dir="${webroot}/${directoryName}">
+				<include name="**/*.cfm" />
+				<include name="**/*.cfml" />
+				<include name="**/*.cfc" />
+				<include name="**/*.js"/>
+				<include name="**/*.xml"/>
+				<include name="**/*.css"/>
+				<exclude name="**/mxunit/**" />
+				<exclude name="**/plugins/**" />
+				<exclude name="**/CFIDE/**" />
+				<exclude name="**/cfide/**" />
+				<exclude name="**/WEB-INF/**" />
+				<exclude name="**/META-INF/**" />
+				<exclude name="**/varscoper4/**" />
+				<exclude name="**/qpscanner/**" />
+				<exclude name="**/colddoc/**" />
+				<exclude name="**/lib-cloudy/**" />
+				<exclude name="**/tests/**" />
+				<exclude name="**/snapshots/**" />
+				<exclude name="build.xml" />
+				<exclude name="cpd.xml"/>
+			</fileset>
+		</copy>
+		<echo>done copying files</echo>
+	</target>
+
+	<!--
+		=================================
+			Target: copy.jenkins
+			Copying files for compile test
+		=================================
+	-->
+	<target name="copy.jenkins" depends="init,clean" if="jenkins_workspace">
+		<echo>Copying from ${jenkins_workspace}</echo>
+		<copy todir="${filePathToBuildFolder}">
+			<fileset dir="${jenkins_workspace}">
+				<include name="**/*.cfm" />
+				<include name="**/*.cfml" />
+				<include name="**/*.cfc" />
+				<include name="**/*.xml"/>
+				<include name="**/*.js"/>
+				<include name="**/*.css"/>
+				<exclude name="**/mxunit/**" />
+				<exclude name="**/plugins/**" />
+				<exclude name="**/CFIDE/**" />
+				<exclude name="**/cfide/**" />
+				<exclude name="**/WEB-INF/**" />
+				<exclude name="**/META-INF/**" />
+				<exclude name="**/varscoper4/**" />
+				<exclude name="**/qpscanner/**" />
+				<exclude name="**/colddoc/**" />
+				<exclude name="**/lib-cloudy/**" />
+				<exclude name="**/tests/**" />
+				<exclude name="**/snapshots/**" />
+				<exclude name="build.xml" />
+				<exclude name="cpd.xml"/>
+			</fileset>
+		</copy>
+		<echo>done copying files</echo>
+	</target>
+
+	<!--
+		=================================
+			Target: deploy
+			deploy
+		=================================
+	-->
+	<target name="deploy">
+		<echo>deploy</echo>
+	</target>
+
+	<!--
+		=================================
+			Target: documentation
+			Creates documentation
+		=================================
+	-->
+	<target name="documentation" depends="init"  description="this will create documentation">
+		<echo>documentation</echo>
+	</target>
+
+	<!--
+		=================================
+			Target: database.create
+			Compile and Rebuild Database
+		=================================
+	-->
+	<target name="database.create">
+		<echo>Run the create scripts in the sql/create/ folder...</echo>
+		<sql
+			driver="${db.driver}"
+			classpath="${db.classpath}"
+			url="${db.url}"
+			userid="${db.user}"
+			password="${db.password}">
+			<path>
+				<fileset dir="sql/create/">
+					<include name="*.sql"/>
+				</fileset>
+			</path>
+		</sql>
+	</target>
+	
+	<!--
+		=================================
+			Target: database.update
+			Update database
+		=================================
+	-->
+	<target name="database.update">
+		<echo>Run the update scripts in the sql/update/ folder...</echo>
+		<sql
+			driver="${db.driver}"
+			classpath="${db.classpath}"
+			url="${db.url}"
+			userid="${db.user}"
+			password="${db.password}">
+			<path>
+				<fileset dir="sql/update/">
+					<include name="*.sql"/>
+				</fileset>
+			</path>
+		</sql>
+	</target>
+	
+	<!--
+		=================================
+			Target: testing.unit
+			Runs the unit tests
+		=================================
+	-->
+	<target name="testing.unit" depends="init" description="this will run unit tests">
+		<runTestDirectory testDirectoryName="unit" />
+	</target>
+	
+	<!--
+		=================================
+			Target: testing.acceptance
+			Runs the acceptance tests
+		=================================
+	-->
+	<target name="testing.acceptance" depends="init" description="this will run acceptance tests">
+		<runTestDirectory testDirectoryName="ui" />
+	</target>
+	
+	<!--
+		=================================
+			Target: inspection.qpscanner
+			Test for query params
+		=================================
+	-->
+	<target name="inspection.qpscanner" depends="init,copy" description="this will inspect code for sql injection issues">
+		<echo>Starting qpscanner...</echo>
+		<!-- Arguments for CFQueryParam checker -->
+		<property name="qpscanner.url" value="${webapp.server}/qpscanner/index.cfm?fuseaction=scanner.go" />
+		<property name="qpscanner.outputfile" location="${filePathToBuildFolder}/qpscanner.xml" />
+		<property name="qpscanner.failOnAlertsFound" value="false" />
+		<property name="qpscanner.config" value="default" />
+		<property name="qpscanner.profile" value="default" />
+		<property name="qpscanner.recurse" value="true" />
+		<property name="qpscanner.exclusions" value="(deprecated|scheduledTasks)" />
+		<property name="qpscanner.scanOrderBy" value="false" />
+		<property name="qpscanner.scanQoQ" value="false" />
+		<property name="qpscanner.scanBuiltinFunc" value="false" />
+		<property name="qpscanner.showScopeInfo" value="false" />
+		<property name="qpscanner.highlightClientScopes" value="false" />
+		<property name="qpscanner.clientScopes" value="form,url,client,cookie" />
+		<property name="qpscanner.results" value="${qpscanner.outputfile}" />
+		<echo>for ${inspection.urlpath}</echo>
+		<post to="${qpscanner.url}" logfile="${qpscanner.results}" append="false" verbose="false">
+			<prop name="action" value="scan" />
+			<prop name="outputFormat" value="xml" />
+			<prop name="config" value="${qpscanner.config}" />
+			<prop name="profile" value="${qpscanner.profile}" />
+			<prop name="startingDir" value="${inspection.urlpath}" />
+			<prop name="recurse" value="${qpscanner.recurse}" />
+			<prop name="exclusions" value="${qpscanner.exclusions}" />
+			<prop name="scanOrderBy" value="${qpscanner.scanOrderBy}" />
+			<prop name="scanQoQ" value="${qpscanner.scanQoQ}" />
+			<prop name="scanBuiltinFunc" value="${qpscanner.scanBuiltinFunc}" />
+			<prop name="showScopeInfo" value="${qpscanner.showScopeInfo}" />
+			<prop name="highlightClientScopes" value="${qpscanner.highlightClientScopes}" />
+			<prop name="clientScopes" value="${qpscanner.clientScopes}" />
+		</post>
+		<xmlproperty file="${qpscanner.results}" />
+		<echo message="Scanned ${qpscanner.info.count.files} files containing ${qpscanner.info.count.queries} queries." />
+		<echo message="Found ${qpscanner.info.count.alerts} alerts." />
+		<fail message="QueryParam Scanner alerts present.">
+			<condition>
+				<and>
+					<istrue value="${qpscanner.failOnAlertsFound}" />
+					<not>
+						<equals arg1="${qpscanner.info.count.alerts}" arg2="0" />
+					</not>
+				</and>
+			</condition>
+		</fail>
+	</target>
+
+	<!--
+		=================================
+			Target: inspection.varscoper
+			Test var scoped variables
+		=================================
+	-->
+	<target name="inspection.varscoper" depends="init,copy" description="this will inspect code for unscoped variables">
+		<property name="varscoper.baseurl" value="${webapp.server}/varscoper4/" />
+		<property name="varscoper.results" value="varscoper.csv" />
+		<property name="varscoper.recursiveDirectory" value="true" />
+		
+		<!-- note: this target should fail when running as default (test case has var scope violations-->
+		<echo>Starting VarScoper check...</echo>
+		<echo>for ${inspection.urlpath}</echo>
+		<!-- save the results of the call to varscoper.cfm as a csv file that we will delete later -->
+		<get dest="${varscoper.results}" src="${varscoper.baseurl}?displayformat=csv&amp;filePath=${inspection.urlpath}&amp;varscoper.recursiveDirectory=${varscoper.recursiveDirectory}" />
+		<loadfile srcfile="${varscoper.results}" property="varscoper.csv">
+			<filterchain>
+				<headfilter skip="1" />
+				<trim />
+			</filterchain>
+		</loadfile>
+		<property name="varscoper.csv" value="No VarScope Violations"/>
+		<echo>${varscoper.csv}</echo>
+		<fail message="VarScope violations are found.">
+			<condition>
+				<not>
+					<equals arg1="${varscoper.csv}" arg2="No VarScope Violations" />
+				</not>
+			</condition>
+		</fail>
+	</target>
+	
+	<!--
+		=================================
+			Target: inspection.cpd
+			Copy paste detector 
+			http://www.joshuafrankamp.com/blog/keeping-dry/
+		=================================
+	-->
+	<target name="inspection.cpd" depends="init,copy" description="this will inspect code for duplication">
+		<echo>Starting Copy Paste detector...</echo>
+		<!-- copy paste detector!! -->
+		<echo>for ${filePathToBuildFolder}</echo>
+		<taskdef name="cpd" classname="net.sourceforge.pmd.cpd.CPDTask" classpathref="project.classpath"/>
+		<cpd minimumTokenCount="200" outputFile="cpd.xml" format="xml" language="cfm" encoding="UTF-8">
+			<fileset dir="${filePathToBuildFolder}">
+				<include name="**/*.cfm"/>
+				<include name="**/*.cfc"/>
+				<include name="**/*.cfml"/>
+			</fileset>
+		</cpd>
+		<!-- <native2ascii encoding="UTF-8" src="." dest="." includes="*.raw" ext=".xml"/> -->
+	</target>
+	
+	<!--
+		=================================
+			Target: inspection.jslint
+			Checking if JavaScript source code complies with coding rules 
+		=================================
+	-->
+	 <target name="inspection.jslint" depends="init" description="this will inspect code for js issues">
+	 	<echo>Starting jslint...</echo>
+	 	<jslint haltOnFailure="false" options="sloppy">
+	 		<formatter type="xml" destfile="jslint.xml"/>
+	 		<fileset dir="${filePathToBuildFolder}" includes="**/*.js" excludes="**/*.pack.js" />
+	 	  </jslint>
+	  </target>
+	
+	<!--
+		=================================
+			Target: inspection.csslint
+			Checking if CSS source code complies with coding rules 
+		=================================
+	-->
+	<target name="inspection.csslint" depends="init" description="this will inspect code for css issues">
+		<echo>Starting csslint...</echo>
+	    <apply executable="java" failonerror="false" parallel="true" output="csslint.xml">
+	        <fileset dir="${filePathToBuildFolder}" includes="**/*.css" />
+	        <arg line="-jar"/>
+	        <arg path="lib-cloudy/js.jar"/>
+	        <arg path="lib-cloudy/csslint-rhino.js" />      
+
+	        <!-- your customized arguments go here -->
+	        <arg line="--format=lint-xml --warnings=box-model,floats --errors=ids,important"/>
+
+	        <srcfile/>
+	    </apply>
+	</target>
+	
+	<!--
+		=================================
+			Target: compile.openbd
+			Compiles the ColdFusion files for any OpenBD compile errors
+		=================================
+	-->
+	<target name="compile.openbd">
+		<echo>openbd compile check</echo>
+	</target>
+	
+	<!--
+		=================================
+			Target: compile.railo
+			Compiles the ColdFusion files for any Railo compile errors
+		=================================
+	-->
+	<target name="compile.railo">
+		<echo>railo compile check</echo>
+	</target>
+	
+	<!--
+		=================================
+			Target: compile.acf
+			Compiles the ColdFusion files for any ACF compile errors
+		=================================
+	-->
+	<target name="compile.acf">
+		<tstamp />
+
+		<property name="coldfusion.compiler.compileresults" value="compileresults.txt" />
+
+		<echo>Starting mutli compile check for Adobe...</echo>
+		<echo>for ${filePathToBuildFolder}</echo>
+
+		<java classname="coldfusion.tools.CommandLineInvoker" fork="true" resultproperty="java.compilecheck" output="${coldfusion.compiler.compileresults}">
+			<classpath>
+				<pathelement location="${CFUSION_HOME}/runtime/lib/servlet-api.jar" />
+				<pathelement location="${CFUSION_HOME}/runtime/lib/jsp-api.jar" />
+				<pathelement location="${CFUSION_HOME}/runtime/lib/el-api.jar" />
+				<pathelement location="${CFUSION_HOME}/runtime/lib/jrun.jar" />
+				<pathelement location="${WEBINF}/lib/cfmx_bootstrap.jar" />
+				<pathelement location="${WEBINF}/lib/cfx.jar" />
+			</classpath>
+			<sysproperty key=" coldfusion.classPath" value="${CFUSION_HOME}/lib/updates,${CFUSION_HOME}/lib" />
+			<sysproperty key=" coldfusion.libPath" value="${CFUSION_HOME}/lib" />
+			<arg line=" Compiler " />
+			<arg line=" -webinf ${WEBINF} " />
+			<arg line=" -webroot ${webroot} " />
+			<arg line=" -cfroot ${$CFUSION_HOME} " />
+			<arg line=" ${filePathToBuildFolder}" />
+		</java>
+		<loadfile srcfile="${coldfusion.compiler.compileresults}" property="src.file.cferrors">
+			<filterchain>
+				<LineContainsRegExp>
+					<regexp pattern="^Error*" />
+				</LineContainsRegExp>
+			</filterchain>
+		</loadfile>
+		
+		<property name="src.file.cferrors" value="No compile Errors" />
+		<echo>${src.file.cferrors}</echo>
+		<echo>compile check complete for Adobe</echo>
+		<echo>any errors are detailed in compileresults.txt</echo>
+		<fail>
+			<condition>
+				<equals arg1="${java.compilecheck}" arg2="1" />
+			</condition>
+		</fail>
+	</target>
+	
+	<!--
+		=================================
+			Target: compile.check
+			This is a check for any engine
+		=================================
+	-->
+	<target name="compile.check" depends="init,copy,copy.jenkins" description="this will inspect code for syntax issues">
+		<if>
+			<equals arg1="${cfmlengine.acf}" arg2="true"/>
+			<then>
+				<antcall target="compile.acf" />
+			</then>
+		</if>
+		<if>
+			<equals arg1="${cfmlengine.railo}" arg2="true"/>
+			<then>
+				<antcall target="compile.railo" />
+			</then>
+		</if>
+		<if>
+			<equals arg1="${cfmlengine.openbd}" arg2="true"/>
+			<then>
+				<antcall target="compile.openbd" />
+			</then>
+		</if>
+	</target>
+	
+	<!--
+		=================================
+			Macrodef: runTestDirectory
+			This is used for unit and acceptance testing
+		=================================
+	-->
+	<macrodef name="runTestDirectory">
+		<attribute name="testDirectoryName"/>
+		<attribute name="excludes" default=""/>
+		<sequential>
+			
+			<delete dir="${mxunit.output.xml}/@{testDirectoryName}"/>
+			<mkdir dir="${mxunit.output.xml}/@{testDirectoryName}"/>
+			<echo>for ${mxunit.dir.location}/@{testDirectoryName}</echo>
+			<mxunittask server="${mxunit.server}" 
+				port="${mxunit.serverport}" 
+				defaultrunner="${mxunit.runner}" 
+				outputdir="${mxunit.output.xml}/@{testDirectoryName}" 
+				verbose="true" 
+				failureproperty="tests.mxunit.bombed" 
+				errorproperty="tests.mxunit.bombed">
+				<directory path="${mxunit.dir.location}/@{testDirectoryName}" 
+					recurse="true" 
+					packageName="${mxunit.cfcpath}.@{testDirectoryName}" 
+					componentPath="${mxunit.cfcpath}.@{testDirectoryName}" 
+					excludes="@{excludes}" />
+			</mxunittask>
+		</sequential>
+	</macrodef>
+</project>
