@@ -1,0 +1,1 @@
+<cfset mike = 1
